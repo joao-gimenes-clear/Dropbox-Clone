@@ -6,9 +6,10 @@ class DropBoxController {
       this.progressBarEl = this.snackModalEl.querySelector('.mc-progress-bar-fg');
       this.nameFileEl = this.snackModalEl.querySelector('.filename');
       this.timeleftEl = this.snackModalEl.querySelector('.timeleft');
-        
+      this.listFilesEl = document.querySelector('#list-of-files-and-directories');
       this.connectFirebase();
       this.initEvents();
+      this.readFiles();
     }
     
     connectFirebase(){
@@ -29,17 +30,49 @@ class DropBoxController {
 
     initEvents() {
       this.btnSendFileEl.addEventListener("click", (event) => {
+
         this.inputFilesEl.click();
+
       });
   
       this.inputFilesEl.addEventListener("change", (event) => {
-        this.uploadTask(event.target.files);
+
+        this.btnSendFileEl.disabled = true;
+
+        this.uploadTask(event.target.files).then(responses =>{
+
+          responses.forEach(resp =>{
+
+            this.getFirebaseRef().push().set(resp.files['input-file']);
+
+          });
+          
+          this.uploadComplete();
+
+        }).catch(err=>{
+
+          this.uploadComplete();
+          console.error(err);
+
+        });
   
         this.modalShow();
   
-        this.inputFilesEl.value = "";
-        
       });
+    }
+
+    uploadComplete(){
+
+      this.modalShow(false);
+      this.inputFilesEl.value = '';
+      this.btnSendFileEl.disabled = false;
+
+    }
+
+    getFirebaseRef(){
+
+      return firebase.database().ref('files')
+
     }
   
     modalShow(show = true) {
@@ -57,7 +90,7 @@ class DropBoxController {
   
           ajax.onload = event => {
   
-            this.modalShow(false)
+           
   
             try {
               resolve(JSON.parse(ajax.responseText))
@@ -67,7 +100,7 @@ class DropBoxController {
           }
   
           ajax.onerror = event => {
-            this.modalShow(false)
+            
             reject(event)
           }
   
@@ -125,7 +158,7 @@ class DropBoxController {
 
     getFileIconView(file){
 
-        switch(file.type){
+        switch(file.mimetype){
 
             case 'folder':
                 return `
@@ -225,7 +258,7 @@ class DropBoxController {
 
                 break;
 
-                case 'image/jpge':
+                case 'image/jpeg':
                 case 'image/jpg':
                 case 'image/png':
                 case 'image/gif':
@@ -296,14 +329,39 @@ class DropBoxController {
 
     }
 
-    getFileView(){
+    getFileView(file, key){
 
-        return `
-        <li>
-           ${this.getFileIconView(file)}
-          <div class="name text-center">${file.name}</div>
-             </li>
-        `;
+      let li = document.createElement('li');
+
+      li.dataset.key = key;
+
+      li.innerHTML = `
+        ${this.getFileIconView(file)}
+        <div class="name text-center">${file.originalFilename}</div>
+      `;
+
+       return li;
+
+    }
+
+    readFiles(){
+
+      this.getFirebaseRef().on('value', snapshot =>{
+
+        this.listFilesEl.innerHTML = '';
+
+        snapshot.forEach(snapshotItem =>{
+
+          let key = snapshotItem.key;
+          let data = snapshotItem.val();
+
+          console.log(key, data)
+
+          this.listFilesEl.appendChild(this.getFileView(data, key));
+
+        })
+
+      })
 
     }
   
